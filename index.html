@@ -1036,14 +1036,7 @@
             const total = currentQuizQuestions.length;
             totalQuestions.textContent = total;
 
-            let message = "お疲れ様でした！";
-            if (score === total) {
-                message = "🎉 全問正解おめでとうございます！素晴らしい！";
-            } else if (score >= total * 0.7) {
-                message = "🌟 あと少し！よく頑張りました。";
-            } else {
-                message = "もう一度挑戦して、知識を深めましょう！";
-            }
+            let message = "問題終了";
             resultMessage.textContent = message;
 
             showScreen('result-screen');
@@ -1103,5 +1096,6 @@
     </script>
 </body>
 </html>
+
 
 
