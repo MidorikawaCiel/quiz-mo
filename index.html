@@ -2,64 +2,1055 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>一般常識クイズ</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>記入式ランダムクイズ</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; }
-        #quiz-container { max-width: 500px; margin: auto; border: 1px solid #ccc; padding: 20px; border-radius: 10px; }
-        .choice-btn { display: block; width: 100%; margin: 10px 0; padding: 10px; cursor: pointer; }
+        /* フォント設定 */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7fafc; /* ライトグレーの背景 */
+        }
+        /* カスタムスタイル: ボタンのホバー効果 */
+        .btn-theme:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .btn-theme {
+            transition: all 0.2s ease-in-out;
+        }
+        /* UIの主要なカードスタイル */
+        .card {
+            background-color: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        /* 無効化されたボタンのスタイル */
+        #submit-answer-btn:disabled {
+            background-color: #9ca3af; /* Tailwind gray-400 */
+            cursor: not-allowed;
+        }
+        /* 入力エラー時の枠線 */
+        .input-error {
+            border-color: #ef4444 !important; /* Tailwind red-500 */
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.5);
+        }
     </style>
 </head>
-<body>
-    <div id="quiz-container">
-        <h2 id="question">問題を読み込み中...</h2>
-        <div id="choices"></div>
-        <p id="feedback"></p>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div id="app" class="w-full max-w-lg">
+        <div id="loading-screen" class="flex flex-col items-center justify-center p-8 card transition-opacity duration-300">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            <p class="mt-4 text-lg text-indigo-600 font-semibold">データを読み込み中...</p>
+        </div>
+
+        <!-- 1. テーマ選択画面 (Theme Selection Screen) -->
+        <div id="theme-selection-screen" class="hidden card p-6 md:p-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">クイズのテーマを選ぶ</h1>
+            
+            <!-- 検索ボックスの追加 -->
+            <input type="text" id="theme-search-input"
+                   class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-lg mb-6"
+                   placeholder="テーマを検索..."
+                   autocomplete="off">
+
+            <div id="theme-list" class="grid grid-cols-1 gap-4">
+                <!-- テーマボタンがJSによって挿入されます -->
+            </div>
+            <!-- 検索結果なしメッセージ -->
+            <p id="no-themes-message" class="hidden text-center text-gray-500 mt-4">該当するテーマは見つかりませんでした。</p>
+        </div>
+
+        <!-- 1.5. クイズ開始確認画面 (Confirmation Screen) -->
+        <div id="confirmation-screen" class="hidden card p-6 md:p-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">クイズを開始しますか？</h2>
+            
+            <div class="bg-indigo-50 p-4 rounded-lg mb-6">
+                <p class="text-lg font-semibold text-indigo-700 mb-2">テーマ:</p>
+                <p id="confirm-theme-title" class="text-2xl font-extrabold text-gray-800 mb-4"></p>
+                
+                <p class="text-lg font-semibold text-indigo-700 mb-2">概要:</p>
+                <p id="confirm-theme-description" class="text-base text-gray-700"></p>
+                
+                <p class="text-base text-gray-500 mt-4">出題数: <span class="font-bold">ランダム10問</span></p>
+            </div>
+            
+            <div class="flex space-x-4 mt-6">
+                <button id="start-quiz-btn"
+                        class="flex-1 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition duration-150">
+                    クイズスタート
+                </button>
+                <button id="cancel-quiz-btn"
+                        class="flex-1 py-3 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition duration-150">
+                    キャンセル
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. クイズ画面 (Quiz Screen) -->
+        <div id="quiz-screen" class="hidden card p-6 md:p-8">
+            <h2 id="quiz-theme-title" class="text-xl font-semibold text-indigo-600 mb-4 border-b pb-2"></h2>
+            <div class="text-sm font-medium text-gray-500 mb-6">
+                <span id="question-counter"></span>
+                <span id="answer-type-display" class="ml-2 px-2 py-1 bg-gray-200 text-gray-600 rounded-full text-xs"></span>
+            </div>
+
+            <div class="bg-indigo-50 p-4 rounded-lg mb-6">
+                <p id="question-text" class="text-xl font-bold text-gray-800"></p>
+            </div>
+
+            <input type="text" id="user-answer-input"
+                   class="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-lg mb-2"
+                   placeholder="解答を入力してください (制限なし)"
+                   autocomplete="off">
+            
+            <!-- 入力エラーメッセージ -->
+            <p id="validation-message" class="text-red-500 text-sm mb-4 hidden">
+                ⚠️ 指定された文字種以外が含まれています。
+            </p>
+
+            <button id="submit-answer-btn"
+                    class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition duration-150">
+                解答を提出
+            </button>
+            
+            <!-- フィードバックと解説を表示するための要素 -->
+            <div id="feedback-message" class="mt-4 p-3 rounded-lg text-center hidden font-semibold"></div>
+            <div id="explanation-text" class="mt-4 p-3 rounded-lg bg-gray-100 text-gray-700 hidden text-sm"></div>
+        </div>
+
+        <!-- 3. 結果画面 (Result Screen) -->
+        <div id="result-screen" class="hidden card p-8 text-center">
+            <h2 class="text-3xl font-bold text-gray-800 mb-4">クイズ終了！</h2>
+            <p class="text-6xl font-extrabold text-indigo-600 mb-6">
+                <span id="final-score">0</span> / <span id="total-questions">10</span>
+            </p>
+            <p id="result-message" class="text-xl text-gray-600 mb-8"></p>
+            
+            <button id="restart-btn"
+                    class="w-full py-3 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition duration-150">
+                別のテーマで再スタート
+            </button>
+        </div>
     </div>
 
+    <!-- アプリケーションロジック -->
     <script>
-        // AIに作らせたクイズデータの例
-        const quizData = [
-            { q: "日本で一番高い山は？", a: ["富士山", "北岳", "奥穂高岳", "間ノ岳"], correct: 0 },
-            { q: "五円玉に描かれている植物は？", a: ["米", "麦", "稲", "杉"], correct: 2 }
+        // --- 静的クイズデータ ---
+        const staticQuizzes = [
+            {
+                themeName: "日本の都道府県庁所在地",
+                id: "kenchoshozaichi",
+                description: "都道府県名を示すので県庁所在地を答えてください。",
+                questions: [
+                    { 
+                        question: "北海道", 
+                        answers: ["札幌市", "さっぽろし", "札幌", "さっぽろ"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "青森県", 
+                        answers: ["青森市", "あおもりし", "青森", "あおもり"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "岩手県", 
+                        answers: ["盛岡市", "もりおかし", "盛岡", "もりおか"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "宮城県", 
+                        answers: ["仙台市", "せんだいし", "仙台", "せんだい"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "秋田県", 
+                        answers: ["秋田市", "あきたし", "秋田", "あきた"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "山形県", 
+                        answers: ["山形市", "やまがたし", "山形", "やまがた"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "福島県", 
+                        answers: ["福島市", "ふくしまし", "福島", "ふくしま"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "茨城県", 
+                        answers: ["水戸市", "みとし", "みと", "みとし"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "栃木県", 
+                        answers: ["宇都宮市", "うつのみやし", "宇都宮", "うつのみや"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "群馬県", 
+                        answers: ["前橋市", "まえばしし", "前橋", "まえばし"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "埼玉県", 
+                        answers: ["さいたま市", "さいたまし", "さいたま"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "千葉県", 
+                        answers: ["千葉市", "ちばし", "千葉", "ちば"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "神奈川県", 
+                        answers: ["横浜市", "よこはまし", "横浜", "よこはま"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "新潟県", 
+                        answers: ["新潟市", "にいがたし", "新潟", "にいがた"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "富山県", 
+                        answers: ["富山市", "とやまし", "富山", "とやま"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "石川県", 
+                        answers: ["金沢市", "かなざわし", "金沢", "かなざわ"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "福井県", 
+                        answers: ["福井市", "ふくいし", "福井", "ふくい"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "山梨県", 
+                        answers: ["甲府市", "こうふし", "甲府", "こうふ"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "長野県", 
+                        answers: ["長野市", "ながのし", "長野", "ながの"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "岐阜県", 
+                        answers: ["岐阜市", "ぎふし", "岐阜", "ぎふ"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "愛知県", 
+                        answers: ["名古屋市", "なごやし", "名古屋", "なごや"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "三重県", 
+                        answers: ["津市", "つし", "津", "つ"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "滋賀県", 
+                        answers: ["大津市", "おおつし", "大津", "おおつ"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "京都府", 
+                        answers: ["京都市", "きょうとし", "京都", "きょうと"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "大阪府", 
+                        answers: ["大阪市", "おおさかし", "大阪", "おおさか"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "兵庫県", 
+                        answers: ["神戸市", "こうべし", "神戸", "こうべ"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "奈良県", 
+                        answers: ["奈良市", "ならし", "奈良", "なら"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "和歌山県", 
+                        answers: ["和歌山市", "わかやまし", "和歌山", "わかやま"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "鳥取県", 
+                        answers: ["鳥取市", "とっとりし", "鳥取", "とっとり"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "島根県", 
+                        answers: ["松江市", "まつえし", "松江", "まつえ"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "岡山県", 
+                        answers: ["岡山市", "おかやまし", "岡山", "おかやま"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "広島県", 
+                        answers: ["広島市", "ひろしまし", "広島", "ひろしま"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "山口県", 
+                        answers: ["山口市", "やまぐちし", "山口", "やまぐち"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "徳島県", 
+                        answers: ["徳島市", "とくしまし", "徳島", "とくしま"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "香川県", 
+                        answers: ["高松市", "たかまつし", "高松", "たかまつ"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "愛媛県", 
+                        answers: ["松山市", "まつやまし", "松山", "まつやま"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "高知県", 
+                        answers: ["高知市", "こうちし", "高知", "こうち"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "福岡県", 
+                        answers: ["福岡市", "ふくおかし", "福岡", "ふくおか"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "佐賀県", 
+                        answers: ["佐賀市", "さがし", "佐賀", "さが"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "長崎県", 
+                        answers: ["長崎市", "ながさきし", "長崎", "ながさき"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "熊本県", 
+                        answers: ["熊本市", "くまもとし", "熊本", "くまもと"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "大分県", 
+                        answers: ["大分市", "おおいたし", "大分", "おおいた"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "宮崎県", 
+                        answers: ["宮崎市", "みやざきし", "宮崎", "みやざき"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "鹿児島県", 
+                        answers: ["鹿児島市", "かごしまし", "鹿児島", "かごしま"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                    { 
+                        question: "沖縄県", 
+                        answers: ["那覇市", "なはし", "那覇", "なは"],
+                        explanation: "",
+                        answerType: "unlimited"
+                    },
+                ]
+            },
+            {
+                themeName: "日本の作家(代表作→作家)",
+                id: "japanese_writer",
+                description: "代表作を示すので作家のペンネームを仮名で答えてください。",
+                questions: [
+                    { 
+                        question: "『日本の黒い霧』『点と線』", 
+                        answers: ["まつもとせいちょう"],
+                        explanation: "松本清張",
+                        answerType: "kana"
+                    },
+                    { 
+                        question: "『田舎教師』『蒲団』", 
+                        answers: ["たやまかたい"],
+                        explanation: "田山花袋",
+                        answerType: "kana" 
+                    },
+                    { 
+                        question: "『セロ弾きのゴーシュ』『風の又三郎』『銀河鉄道の夜』", 
+                        answers: ["みやざわけんじ"],
+                        explanation: "宮沢賢治",
+                        answerType: "kana"
+                    },
+                    { 
+                        question: "『古都』『雪国』『伊豆の踊子』", 
+                        answers: ["かわばたやすなり"],
+                        explanation: "川端康成",
+                        answerType: "kana"
+                    },
+                    { 
+                        question: "『飼育』『万延元年のフットボール』", 
+                        answers: ["おおえけんざぶろう"],
+                        explanation: "大江健三郎",
+                        answerType: "kana"
+                    },
+                    { 
+                        question: "『こゝろ』『坊っちゃん』『吾輩は猫である』", 
+                        answers: ["なつめそうせき"],
+                        explanation: "夏目漱石",
+                        answerType: "kana"
+                    },
+                    { 
+                        question: "『また、同じ夢をみていた』『青くて痛くて脆い』『君の膵臓をたべたい』", 
+                        answers: ["すみのよる"],
+                        explanation: "住野よる",
+                        answerType: "kana"
+                    },
+                    { 
+                        question: "『櫻の樹の下には』『檸檬』", 
+                        answers: ["かじいもとじろう"],
+                        explanation: "梶井基次郎",
+                        answerType: "kana"
+                    },
+                    { 
+                        question: "『雁』『高瀬舟』『舞姫』", 
+                        answers: ["もりおうがい"],
+                        explanation: "森鴎外",
+                        answerType: "kana"
+                    },
+                    { 
+                        question: "『インストール』『蹴りたい背中』", 
+                        answers: ["わたやりさ"],
+                        explanation: "綿矢りさ",
+                        answerType: "kana"
+                    },
+                    { 
+                        question: "『海辺のカフカ』『1Q84』『ノルウェイの森』", 
+                        answers: ["むらかみはるき"],
+                        explanation: "村上春樹",
+                        answerType: "kana"
+                    },
+                    { 
+                        question: "『西洋道中膝栗毛』『安愚楽鍋』", 
+                        answers: ["かながきろぶん"],
+                        explanation: "仮名垣魯文",
+                        answerType: "kana"
+                    },
+                    { 
+                        question: "『坂の上の雲』『国盗り物語』『竜馬がゆく』", 
+                        answers: ["しばりょうたろう"],
+                        explanation: "司馬遼太郎",
+                        answerType: "kana"
+                    },
+                    { 
+                        question: "『赤頭巾ちゃん気をつけて』", 
+                        answers: ["しょうじかおる"],
+                        explanation: "庄司薫",
+                        answerType: "kana"
+                    },
+                    { 
+                        question: "『小説総論』『浮雲』", 
+                        answers: ["ふたばていしめい"],
+                        explanation: "二葉亭四迷",
+                        answerType: "kana"
+                    },
+                    { 
+                        question: "『破戒』『春』『若菜集』", 
+                        answers: ["しまざきとうそん"],
+                        explanation: "島崎藤村",
+                        answerType: "kana"
+                    },
+                ]
+            },
+            {
+                themeName: "アルファベットの略称(正式名称→略称)",
+                id: "initial",
+                description: "アルファベットの略称にしてください。",
+                questions: [
+                    { 
+                        question: "欧州連合", 
+                        answers: ["EU"],
+                        explanation: "European Union",
+                        answerType: "alphabet"
+                    },
+                    { 
+                        question: "世界貿易機関", 
+                        answers: ["WTO"],
+                        explanation: "World Trade Organization",
+                        answerType: "alphabet" // 新しい制限: 数字とアルファベットのみ
+                    },
+                    { 
+                        question: "日本放送協会", 
+                        answers: ["NHK"],
+                        explanation: "Nippon Hoso Kyokai",
+                        answerType: "alphabet"
+                    },
+                    { 
+                        question: "連合国軍総司令部", 
+                        answers: ["GHQ"],
+                        explanation: "General Headquarters",
+                        answerType: "alphabet"
+                    },
+                    { 
+                        question: "中央処理装置", 
+                        answers: ["CPU"],
+                        explanation: "central processing unit",
+                        answerType: "alphabet"
+                    },
+                    { 
+                        question: "関税及び貿易に関する一般協定", 
+                        answers: ["GATT"],
+                        explanation: "General Agreement on Tariffs and Trade",
+                        answerType: "alphabet"
+                    },
+                    { 
+                        question: "仮想現実", 
+                        answers: ["VR"],
+                        explanation: "virtual reality",
+                        answerType: "alphabet"
+                    },
+                    { 
+                        question: "国内総生産", 
+                        answers: ["GDP"],
+                        explanation: "gross domestic product",
+                        answerType: "alphabet"
+                    },
+                    { 
+                        question: "後天性免疫不全症候群", 
+                        answers: ["AIDS"],
+                        explanation: "Acquired immune deficiency syndrome",
+                        answerType: "alphabet"
+                    },
+                    { 
+                        question: "モノのインターネット", 
+                        answers: ["IoT"],
+                        explanation: "Internet of Things",
+                        answerType: "alphabet"
+                    },
+                    { 
+                        question: "ポリメラーゼ連鎖反応", 
+                        answers: ["PCR"],
+                        explanation: "polymerase chain reaction",
+                        answerType: "alphabet"
+                    },
+                    { 
+                        question: "デオキシリボ核酸", 
+                        answers: ["DNA"],
+                        explanation: "deoxyribonucleic acid",
+                        answerType: "alphabet"
+                    },
+                ]
+            },
         ];
 
-        let currentIdx = 0;
+        // --- UI要素の取得 ---
+        const loadingScreen = document.getElementById('loading-screen');
+        const themeSelectionScreen = document.getElementById('theme-selection-screen');
+        const confirmationScreen = document.getElementById('confirmation-screen'); 
+        const quizScreen = document.getElementById('quiz-screen');
+        const resultScreen = document.getElementById('result-screen');
+        const themeList = document.getElementById('theme-list');
+        const themeSearchInput = document.getElementById('theme-search-input');
+        const noThemesMessage = document.getElementById('no-themes-message');
 
-        function loadQuiz() {
-            const q = quizData[currentIdx];
-            document.getElementById("question").innerText = q.q;
-            const choiceDiv = document.getElementById("choices");
-            choiceDiv.innerHTML = "";
-            q.a.forEach((text, i) => {
-                const btn = document.createElement("button");
-                btn.innerText = text;
-                btn.className = "choice-btn";
-                btn.onclick = () => checkAnswer(i);
-                choiceDiv.appendChild(btn);
+        const confirmThemeTitle = document.getElementById('confirm-theme-title'); 
+        const confirmThemeDescription = document.getElementById('confirm-theme-description'); 
+        const startQuizBtn = document.getElementById('start-quiz-btn'); 
+        const cancelQuizBtn = document.getElementById('cancel-quiz-btn'); 
+
+        const quizThemeTitle = document.getElementById('quiz-theme-title');
+        const questionCounter = document.getElementById('question-counter');
+        const answerTypeDisplay = document.getElementById('answer-type-display'); 
+        const questionText = document.getElementById('question-text');
+        const userAnswerInput = document.getElementById('user-answer-input');
+        const submitAnswerBtn = document.getElementById('submit-answer-btn');
+        const validationMessage = document.getElementById('validation-message'); 
+        const feedbackMessage = document.getElementById('feedback-message');
+        const explanationText = document.getElementById('explanation-text'); 
+        const finalScore = document.getElementById('final-score');
+        const totalQuestions = document.getElementById('total-questions');
+        const resultMessage = document.getElementById('result-message');
+        const restartBtn = document.getElementById('restart-btn');
+
+        // --- ゲームの状態 ---
+        let allThemes = []; 
+        let currentQuizQuestions = [];
+        let currentQuestionIndex = 0;
+        let score = 0;
+        const MAX_QUESTIONS = 10;
+        let selectedThemeId = null; 
+
+        // 画面の切り替え関数
+        function showScreen(screenId) {
+            loadingScreen.classList.add('hidden');
+            themeSelectionScreen.classList.add('hidden');
+            confirmationScreen.classList.add('hidden'); 
+            quizScreen.classList.add('hidden');
+            resultScreen.classList.add('hidden');
+
+            document.getElementById(screenId).classList.remove('hidden');
+        }
+
+        // --- 正規化・ヒント関数 ---
+
+        /**
+         * カタカナを対応するひらがなに変換する
+         */
+        function katakanaToHiragana(str) {
+            return str.replace(/[\u30a1-\u30f6]/g, function(match) {
+                return String.fromCharCode(match.charCodeAt(0) - 0x60);
             });
         }
 
-        function checkAnswer(i) {
-            const feedback = document.getElementById("feedback");
-            if (i === quizData[currentIdx].correct) {
-                feedback.innerText = "正解！";
-                feedback.style.color = "green";
-            } else {
-                feedback.innerText = "不正解...";
-                feedback.style.color = "red";
+        /**
+         * 解答を正規化 (文字の種類に基づいて処理を分ける)
+         */
+        function normalizeAnswer(answer, answerType = 'unlimited') {
+            if (typeof answer !== 'string') return '';
+            let normalized = answer.trim();
+
+            if (answerType === 'number') {
+                // 全角数字を半角に変換し、スペースは除去
+                normalized = normalized
+                    .replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+                    .replace(/[\s　]/g, '');
+                // 判定時のみ、数字、小数点、マイナス以外を削除
+                normalized = normalized.replace(/[^\d.\-]/g, '');
+            } else if (answerType === 'alphabet') {
+                // アルファベット以外を削除し、小文字化
+                normalized = normalized.replace(/[^a-zA-Z]/g, '').toLowerCase();
+            } else if (answerType === 'alpha_number') {
+                // 数字とアルファベット以外を削除し、小文字化（全角数字は半角に変換）
+                normalized = normalized
+                    .replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+                    .replace(/[\s　]/g, '')
+                    .replace(/[^a-zA-Z0-9]/g, '')
+                    .toLowerCase();
+            } else if (answerType === 'kana') {
+                // 仮名文字（ひらがな、カタカナ）、長音符「ー」以外の文字を削除
+                normalized = normalized.replace(/[\s　]/g, ''); 
+                normalized = normalized.replace(/[^\u3040-\u309F\u30A0-\u30FFー]/g, '');
+                // カタカナをひらがなに変換
+                normalized = katakanaToHiragana(normalized);
+            } else { // 'unlimited' (デフォルト)
+                // 全角・半角スペース除去、カタカナ→ひらがな統一、小文字化
+                normalized = normalized.replace(/[\s　]+/g, ''); 
+                normalized = katakanaToHiragana(normalized);
+                normalized = normalized.toLowerCase();
             }
-            // 次の問題へ
-            setTimeout(() => {
-                currentIdx++;
-                if(currentIdx < quizData.length) {
-                    feedback.innerText = "";
-                    loadQuiz();
-                } else {
-                    document.getElementById("quiz-container").innerHTML = "<h2>終了！お疲れ様でした。</h2>";
-                }
-            }, 1000);
+            
+            return normalized;
         }
-        loadQuiz();
+
+        /**
+         * answerTypeに基づいたヒントテキストを取得する
+         */
+        function getAnswerHint(type) {
+            switch (type) {
+                case 'kana': return '仮名文字（ひらがな/カタカナ）のみ';
+                case 'alphabet': return 'アルファベット (A-Z) のみ';
+                case 'number': return '数字 (0-9, 小数点, -) のみ';
+                case 'alpha_number': return 'アルファベットと数字のみ'; // 新しいヒント
+                default: return '制限なし';
+            }
+        }
+        
+        /**
+         * 入力文字が指定された文字種のみで構成されているかを検証する
+         */
+        function isValidInput(input, answerType) {
+            if (input === '') return true; // 空文字は常に許可
+
+            let regex;
+            switch (answerType) {
+                case 'kana':
+                    // ひらがな、カタカナ、長音符「ー」、スペース、全角スペースのみ
+                    regex = /^[ぁ-んァ-ヶー\s　]+$/;
+                    break;
+                case 'alphabet':
+                    // アルファベット、スペースのみ
+                    regex = /^[a-zA-Z\s]+$/;
+                    break;
+                case 'number':
+                    // 数字（半角・全角）、小数点、マイナス、スペースのみ
+                    regex = /^[0-9０-９.\-\s]+$/; 
+                    break;
+                case 'alpha_number':
+                    // アルファベット、数字（半角・全角）、スペースのみ
+                    regex = /^[a-zA-Z0-9０-９\s]+$/; 
+                    break;
+                case 'unlimited':
+                default:
+                    return true; // 制限なし
+            }
+
+            return regex.test(input);
+        }
+
+        // --- データと初期化 ---
+
+        /**
+         * テーマリストの描画関数
+         */
+        function renderThemes(themes) {
+            themeList.innerHTML = ''; 
+            noThemesMessage.classList.add('hidden'); 
+
+            if (themes.length === 0) {
+                noThemesMessage.classList.remove('hidden');
+                return;
+            }
+
+            themes.forEach((theme) => {
+                const button = document.createElement('button');
+                button.textContent = theme.themeName;
+                button.dataset.themeId = theme.id;
+                button.className = 'btn-theme bg-indigo-500 text-white p-4 text-xl font-bold rounded-xl shadow-md hover:bg-indigo-600';
+                button.addEventListener('click', () => showConfirmation(theme.id));
+                themeList.appendChild(button);
+            });
+        }
+        
+        // 静的データからテーマ一覧を読み込む
+        function loadThemes() {
+            showScreen('loading-screen');
+            allThemes = staticQuizzes; 
+
+            renderThemes(allThemes);
+
+            setTimeout(() => {
+                showScreen('theme-selection-screen');
+                themeSearchInput.value = '';
+                themeSearchInput.focus();
+            }, 300); 
+        }
+        
+        /**
+         * 検索処理
+         */
+        function handleSearch() {
+            const query = normalizeAnswer(themeSearchInput.value, 'unlimited');
+            
+            const filteredThemes = allThemes.filter(theme => 
+                normalizeAnswer(theme.themeName, 'unlimited').includes(query) ||
+                normalizeAnswer(theme.id, 'unlimited').includes(query)
+            );
+
+            renderThemes(filteredThemes);
+        }
+
+        /**
+         * アプリケーションの初期化
+         */
+        function initApp() {
+            loadThemes();
+
+            // 検索フィールドのイベントリスナーを設定
+            themeSearchInput.addEventListener('input', handleSearch);
+            // 入力欄のリアルタイム検証イベント
+            userAnswerInput.addEventListener('input', validateInput);
+        }
+
+        /**
+         * 確認画面を表示する
+         */
+        function showConfirmation(themeId) {
+            const selectedTheme = allThemes.find(t => t.id === themeId);
+            if (!selectedTheme) return;
+
+            selectedThemeId = themeId; // グローバル変数に保持
+
+            confirmThemeTitle.textContent = selectedTheme.themeName;
+            confirmThemeDescription.textContent = selectedTheme.description || 'テーマの説明がありません。';
+
+            showScreen('confirmation-screen');
+        }
+
+        // --- ゲームフロー関数 ---
+
+        // クイズの開始
+        function startQuiz() {
+            const themeId = selectedThemeId;
+            if (!themeId) return;
+
+            const selectedTheme = allThemes.find(t => t.id === themeId);
+            if (!selectedTheme) {
+                console.error("選択されたテーマが見つかりません。");
+                return;
+            }
+
+            currentQuizQuestions = selectRandomQuestions(selectedTheme.questions);
+            currentQuestionIndex = 0;
+            score = 0;
+
+            if (currentQuizQuestions.length === 0) {
+                 console.error("このテーマには問題がありません。別のテーマを選択してください。"); 
+                 loadThemes();
+                 return;
+            }
+
+            // UIをリセット
+            quizThemeTitle.textContent = `${selectedTheme.themeName} クイズ`;
+            userAnswerInput.value = '';
+            feedbackMessage.classList.add('hidden');
+            explanationText.classList.add('hidden'); 
+            validationMessage.classList.add('hidden'); 
+            userAnswerInput.classList.remove('input-error'); 
+            totalQuestions.textContent = currentQuizQuestions.length; 
+
+            showNextQuestion();
+            showScreen('quiz-screen');
+        }
+
+        // 次の問題の表示
+        function showNextQuestion() {
+            if (currentQuestionIndex < currentQuizQuestions.length) {
+                const questionData = currentQuizQuestions[currentQuestionIndex];
+                const answerType = questionData.answerType || 'unlimited';
+
+                questionCounter.textContent = `問題 ${currentQuestionIndex + 1} / ${currentQuizQuestions.length}`;
+                questionText.textContent = questionData.question;
+                userAnswerInput.value = '';
+                submitAnswerBtn.textContent = '解答を提出';
+                submitAnswerBtn.disabled = true; 
+                userAnswerInput.focus();
+                
+                feedbackMessage.classList.add('hidden');
+                explanationText.classList.add('hidden'); 
+                validationMessage.classList.add('hidden');
+                userAnswerInput.classList.remove('input-error');
+
+                // 文字の種類ヒントの表示を更新
+                const inputHint = getAnswerHint(answerType);
+                userAnswerInput.placeholder = `解答を入力してください (${inputHint})`;
+                answerTypeDisplay.textContent = inputHint;
+
+            } else {
+                endQuiz();
+            }
+        }
+
+        /**
+         * 入力検証とボタンの有効化/無効化を処理する
+         */
+        function validateInput() {
+            if (currentQuestionIndex >= currentQuizQuestions.length) return;
+
+            const userInput = userAnswerInput.value;
+            const questionData = currentQuizQuestions[currentQuestionIndex];
+            const answerType = questionData.answerType || 'unlimited';
+            const buttonState = submitAnswerBtn.textContent;
+
+            // 1. 空チェック
+            if (userInput.trim() === '') {
+                submitAnswerBtn.disabled = true;
+                validationMessage.classList.add('hidden');
+                userAnswerInput.classList.remove('input-error');
+                return;
+            }
+
+            // 2. 文字種検証
+            const isValid = isValidInput(userInput, answerType);
+
+            if (isValid) {
+                // 有効な入力の場合
+                // ただし、解答提出時のみボタンを有効化し、次の問題へボタン時は無効化しない
+                submitAnswerBtn.disabled = (buttonState !== '解答を提出' && buttonState !== '次の問題へ' && buttonState !== '結果を見る');
+                validationMessage.classList.add('hidden');
+                userAnswerInput.classList.remove('input-error');
+            } else {
+                // 不正な文字が含まれている場合
+                submitAnswerBtn.disabled = true;
+                validationMessage.classList.remove('hidden');
+                userAnswerInput.classList.add('input-error');
+            }
+        }
+
+        // 解答の提出処理
+        function submitAnswer() {
+            if (currentQuestionIndex >= currentQuizQuestions.length || submitAnswerBtn.disabled) return;
+
+            const userInput = userAnswerInput.value;
+            // 提出ボタンを押した時点で、次回押下まで無効化
+            submitAnswerBtn.disabled = true;
+
+            const questionData = currentQuizQuestions[currentQuestionIndex];
+            const answerType = questionData.answerType || 'unlimited';
+            const correctAnswers = questionData.answers; 
+            const canonicalAnswer = correctAnswers[0];
+            const explanation = questionData.explanation || "この問題には解説がありません。"; 
+
+            // ユーザー入力と正解リストを同じルールで正規化
+            const normalizedUserInput = normalizeAnswer(userInput, answerType); 
+            
+            const isCorrect = correctAnswers.some(correctAnswer => 
+                normalizeAnswer(correctAnswer, answerType) === normalizedUserInput
+            );
+
+            // フィードバックメッセージの構築
+            let feedbackContent = '';
+            if (isCorrect) {
+                score++;
+                feedbackContent = '✅ 正解です！';
+                feedbackMessage.className = 'mt-4 p-3 rounded-lg text-center font-semibold bg-green-100 text-green-700';
+            } else {
+                feedbackContent = `❌ 不正解です。正解は「<span class="font-bold">${canonicalAnswer}</span>」でした。`;
+                feedbackMessage.className = 'mt-4 p-3 rounded-lg text-center font-semibold bg-red-100 text-red-700';
+            }
+            
+            // フィードバックと解説の表示
+            feedbackMessage.innerHTML = feedbackContent;
+            feedbackMessage.classList.remove('hidden');
+
+            explanationText.textContent = `解説: ${explanation}`;
+            explanationText.classList.remove('hidden');
+
+            // 次のボタンに切り替え
+            submitAnswerBtn.textContent = (currentQuestionIndex < currentQuizQuestions.length - 1) ? '次の問題へ' : '結果を見る';
+            // 次のボタンはすぐに有効化する
+            submitAnswerBtn.disabled = false;
+            submitAnswerBtn.onclick = handleNext;
+
+            // 入力フィールドのイベントリスナーを一時的に無効化
+            userAnswerInput.removeEventListener('input', validateInput);
+        }
+
+        // 次へ/結果へ のボタン処理
+        function handleNext() {
+            currentQuestionIndex++;
+            showNextQuestion();
+            // ボタンのクリックイベントと入力イベントを元に戻す
+            submitAnswerBtn.onclick = submitAnswer;
+            userAnswerInput.addEventListener('input', validateInput);
+        }
+
+        // クイズの終了
+        function endQuiz() {
+            finalScore.textContent = score;
+            const total = currentQuizQuestions.length;
+            totalQuestions.textContent = total;
+
+            let message = "お疲れ様でした！";
+            if (score === total) {
+                message = "🎉 全問正解おめでとうございます！素晴らしい！";
+            } else if (score >= total * 0.7) {
+                message = "🌟 あと少し！よく頑張りました。";
+            } else {
+                message = "もう一度挑戦して、知識を深めましょう！";
+            }
+            resultMessage.textContent = message;
+
+            showScreen('result-screen');
+        }
+
+        /**
+         * 配列からランダムに指定された最大数（MAX_QUESTIONS）の問題を抽出する
+         */
+        function selectRandomQuestions(allQuestions) {
+            const maxCount = MAX_QUESTIONS;
+            if (!allQuestions || allQuestions.length === 0) {
+                return [];
+            }
+            if (allQuestions.length <= maxCount) {
+                // 問題数が少ない場合は、そのままシャッフルして返す
+                const shuffled = allQuestions.slice(); 
+                for (let i = shuffled.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                }
+                return shuffled;
+            }
+
+            // Fisher-Yates (Knuth) シャッフルで10問を抽出
+            const shuffled = allQuestions.slice(); 
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            
+            return shuffled.slice(0, maxCount); 
+        }
+
+
+        // --- イベントリスナーの設定 ---
+        startQuizBtn.addEventListener('click', startQuiz);
+        cancelQuizBtn.addEventListener('click', loadThemes); 
+        submitAnswerBtn.addEventListener('click', submitAnswer);
+        
+        // Enterキーで解答を提出/次へ
+        userAnswerInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); 
+                if (submitAnswerBtn.textContent === '解答を提出' && !submitAnswerBtn.disabled) {
+                    submitAnswer();
+                } else if (submitAnswerBtn.textContent !== '解答を提出' && !submitAnswerBtn.disabled) {
+                    handleNext();
+                }
+            }
+        });
+
+        restartBtn.addEventListener('click', loadThemes);
+
+        // アプリケーションの開始
+        window.onload = initApp;
+
     </script>
 </body>
 </html>
