@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>一般常識クイズ</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; }
+        #quiz-container { max-width: 500px; margin: auto; border: 1px solid #ccc; padding: 20px; border-radius: 10px; }
+        .choice-btn { display: block; width: 100%; margin: 10px 0; padding: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="quiz-container">
+        <h2 id="question">問題を読み込み中...</h2>
+        <div id="choices"></div>
+        <p id="feedback"></p>
+    </div>
+
+    <script>
+        // AIに作らせたクイズデータの例
+        const quizData = [
+            { q: "日本で一番高い山は？", a: ["富士山", "北岳", "奥穂高岳", "間ノ岳"], correct: 0 },
+            { q: "五円玉に描かれている植物は？", a: ["米", "麦", "稲", "杉"], correct: 2 }
+        ];
+
+        let currentIdx = 0;
+
+        function loadQuiz() {
+            const q = quizData[currentIdx];
+            document.getElementById("question").innerText = q.q;
+            const choiceDiv = document.getElementById("choices");
+            choiceDiv.innerHTML = "";
+            q.a.forEach((text, i) => {
+                const btn = document.createElement("button");
+                btn.innerText = text;
+                btn.className = "choice-btn";
+                btn.onclick = () => checkAnswer(i);
+                choiceDiv.appendChild(btn);
+            });
+        }
+
+        function checkAnswer(i) {
+            const feedback = document.getElementById("feedback");
+            if (i === quizData[currentIdx].correct) {
+                feedback.innerText = "正解！";
+                feedback.style.color = "green";
+            } else {
+                feedback.innerText = "不正解...";
+                feedback.style.color = "red";
+            }
+            // 次の問題へ
+            setTimeout(() => {
+                currentIdx++;
+                if(currentIdx < quizData.length) {
+                    feedback.innerText = "";
+                    loadQuiz();
+                } else {
+                    document.getElementById("quiz-container").innerHTML = "<h2>終了！お疲れ様でした。</h2>";
+                }
+            }, 1000);
+        }
+        loadQuiz();
+    </script>
+</body>
+</html>
